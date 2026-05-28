@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { circuitronSubprocess } from "@/lib/circuitron";
 import { validateCircuitronEnvironment } from "@/lib/circuitron/config";
+import { parsePcbEngine } from "@/lib/pcb-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -10,16 +11,20 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const env = validateCircuitronEnvironment();
+  const pcbEngine = parsePcbEngine(process.env.NODE0_PCB_ENGINE);
+  const circuitronRequired = pcbEngine !== "pcbflow";
   let circuitronCli: "unknown" | "ok" | "error" = "unknown";
   let circuitronError: string | undefined;
 
-  try {
-    const health = await circuitronSubprocess.healthCheck();
-    circuitronCli = health.healthy ? "ok" : "error";
-    circuitronError = health.error;
-  } catch (e) {
-    circuitronCli = "error";
-    circuitronError = e instanceof Error ? e.message : "Health check failed";
+  if (circuitronRequired) {
+    try {
+      const health = await circuitronSubprocess.healthCheck();
+      circuitronCli = health.healthy ? "ok" : "error";
+      circuitronError = health.error;
+    } catch (e) {
+      circuitronCli = "error";
+      circuitronError = e instanceof Error ? e.message : "Health check failed";
+    }
   }
 
   const stripe =
@@ -40,13 +45,16 @@ export async function GET() {
     typeof process.env.OPENAI_API_KEY === "string" &&
     process.env.OPENAI_API_KEY.length > 0;
 
-  /** Full stack for on-device PCB generation + agent */
-  const ready = env.valid && circuitronCli === "ok" && openai;
+  /** Full app readiness. Circuitron is optional when PCBFlow is the active backend. */
+  const ready =
+    openai &&
+    supabase &&
+    (!circuitronRequired || (env.valid && circuitronCli === "ok"));
 
   return NextResponse.json({
     ok: true,
     ready,
-    app: "node0",
+    app: "foundry",
     version: "0.1.0",
     checks: {
       openaiConfigured: openai,
@@ -56,7 +64,8 @@ export async function GET() {
       circuitronCliHint: circuitronError,
       stripeConfigured: stripe,
       supabaseConfigured: supabase,
-      pcbEngine: "pcbflow",
+      circuitronRequired,
+      pcbEngine,
     },
     timestamp: new Date().toISOString(),
   });

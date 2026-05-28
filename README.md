@@ -16,9 +16,14 @@ Copy and fill values your features need:
 |----------|---------|
 | `OPENAI_API_KEY` | Agent + PCBFlow script generation |
 | `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Auth + workspace sync |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side workspace, order, and AR handoff persistence |
 | `STRIPE_SECRET_KEY` / related Stripe vars | Checkout + orders |
 | `MCP_URL` or `CIRCUITRON_MCP_URL` | Circuitron MCP |
 | `CIRCUITRON_SKIP_MCP_CHECK=1` | Skip MCP probe (local dev only) |
+
+For OAuth sign-in, also enable the Google and/or GitHub providers inside the Supabase dashboard and add the app callback URL there. The app redirects through `/auth/callback`.
+
+The current checkout implementation creates Stripe Checkout sessions server-side, so `STRIPE_SECRET_KEY` is required. A Stripe publishable key is only needed if a client-side Stripe.js flow is added later.
 
 ## Deploy (Vercel)
 
