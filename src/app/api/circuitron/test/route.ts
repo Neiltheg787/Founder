@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { circuitronSubprocess } from '@/lib/circuitron';
 import { CircuitronRequest } from '@/lib/circuitron/types';
 
-export const maxDuration = 900;
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {

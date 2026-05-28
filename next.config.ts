@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "X-Timeout",
-            value: "900000", // 15 minutes in milliseconds
+            value: "300000", // 5 minutes in milliseconds (Vercel Hobby maximum)
           },
         ],
       },

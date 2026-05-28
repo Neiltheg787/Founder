@@ -13,7 +13,7 @@ import path from "path";
 import os from "os";
 
 // Configure longer timeout for complex PCB generation (15 minutes)
-export const maxDuration = 900; // 15 minutes in seconds
+export const maxDuration = 300; // Vercel Hobby maximum
 export const dynamic = "force-dynamic";
 
 function safeStoredArtifactName(runSlug: string, relKey: string): string {

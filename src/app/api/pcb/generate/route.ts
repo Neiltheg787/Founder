@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { circuitronSubprocess } from "@/lib/circuitron";
 import { pcbDirectGenerateBodySchema } from "@/lib/api/schemas/circuitron";
 
-export const maxDuration = 900; // 15 minutes
+export const maxDuration = 300; // Vercel Hobby maximum
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
