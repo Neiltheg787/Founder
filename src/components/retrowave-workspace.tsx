@@ -1688,7 +1688,9 @@ export function RetrowaveWorkspace() {
     }, 250);
     return () => {
       window.clearTimeout(t);
-      ac.abort();
+      if (!ac.signal.aborted) {
+        ac.abort();
+      }
     };
   }, [
     activeId,
