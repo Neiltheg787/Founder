@@ -35,7 +35,7 @@ function createRoundedBoxGeometry(
   const params = {
     depth: extrudeDepth,
     bevelEnabled: true,
-    bevelSegments: 12,
+    bevelSegments: 8,
     steps: 1,
     bevelSize: r - eps,
     bevelThickness: r,
@@ -64,16 +64,16 @@ export function featureToBufferGeometry(f: CadFeature): THREE.BufferGeometry {
       const sy = (f.sizeMm?.y ?? 10) * MM;
       const sz = (f.sizeMm?.z ?? 10) * MM;
       const r = (f.cornerRadiusMm ?? 1) * MM;
-      return createRoundedBoxGeometry(sx, sy, sz, r, 8);
+      return createRoundedBoxGeometry(sx, sy, sz, r, 4);
     }
     case "cylinder": {
       const r = (f.radiusMm ?? 5) * MM;
       const h = (f.heightMm ?? f.sizeMm?.y ?? 10) * MM;
-      return new THREE.CylinderGeometry(r, r, h, 48);
+      return new THREE.CylinderGeometry(r, r, h, 32);
     }
     case "sphere": {
       const r = (f.radiusMm ?? 5) * MM;
-      return new THREE.SphereGeometry(r, 40, 40);
+      return new THREE.SphereGeometry(r, 28, 28);
     }
     default: {
       return new THREE.BoxGeometry(MM, MM, MM);

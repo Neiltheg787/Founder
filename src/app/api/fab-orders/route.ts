@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { resolveRequestUser } from "@/lib/server-auth";
-import { createSupabaseServiceClient } from "@/lib/supabase-service";
+import { dbForApiUser, resolveApiUser } from "@/lib/demo-api-auth";
+import { bearerFromRequest } from "@/lib/supabase-user";
 
 const nextFabStatus = (s: string): string | null => {
   if (s === "placed") return "shipped";
@@ -11,13 +11,16 @@ const nextFabStatus = (s: string): string | null => {
 };
 
 export async function GET(request: Request) {
-  const authUser = await resolveRequestUser(request);
+  const token = bearerFromRequest(request);
+  const authUser = await resolveApiUser(token);
   if (!authUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createSupabaseServiceClient();
-  if (!supabase) {
+  let supabase;
+  try {
+    supabase = dbForApiUser(token!, authUser.isDemo);
+  } catch (e) {
     return NextResponse.json({ orders: [], degraded: true });
   }
   const user = { id: authUser.id };
@@ -50,13 +53,16 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(request: Request) {
-  const authUser = await resolveRequestUser(request);
+  const token = bearerFromRequest(request);
+  const authUser = await resolveApiUser(token);
   if (!authUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createSupabaseServiceClient();
-  if (!supabase) {
+  let supabase;
+  try {
+    supabase = dbForApiUser(token!, authUser.isDemo);
+  } catch (e) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
   const user = { id: authUser.id };

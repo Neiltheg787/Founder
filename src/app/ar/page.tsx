@@ -441,7 +441,7 @@ function ArInner() {
         </div>
         <p className="mt-2 max-w-sm text-xs leading-relaxed text-zinc-400">
           {handoffErrDetail ??
-            "Generate a new QR from the dashboard AR tab. Handoffs expire after about an hour."}
+            "Generate a new QR from the dashboard AR tab (sign in required). Handoffs expire after about an hour."}
         </p>
         <button
           type="button"

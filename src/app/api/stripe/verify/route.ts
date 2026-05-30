@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { resolveApiUser } from "@/lib/demo-api-auth";
 import { getStripe, isStripeConfigured } from "@/lib/stripe-server";
 import { createSupabaseServiceClient } from "@/lib/supabase-service";
-import { resolveRequestUser } from "@/lib/server-auth";
-import { logButterbaseEvent } from "@/lib/sponsors/butterbase";
+import { bearerFromRequest } from "@/lib/supabase-user";
 
 const bodySchema = z.object({
   sessionId: z.string().min(1).max(256),
@@ -15,7 +15,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Stripe not configured" }, { status: 503 });
   }
 
-  const authUser = await resolveRequestUser(request);
+  const token = bearerFromRequest(request);
+  const authUser = await resolveApiUser(token);
   if (!authUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -87,15 +88,14 @@ export async function POST(request: Request) {
     paid_at: new Date().toISOString(),
   };
 
-  const db = createSupabaseServiceClient();
-  if (!db) {
+  const admin = createSupabaseServiceClient();
+  if (!admin) {
     return NextResponse.json(
-      {
-        error: "SUPABASE_SERVICE_ROLE_KEY required to save fab orders",
-      },
+      { error: "SUPABASE_SERVICE_ROLE_KEY required to save fab orders" },
       { status: 503 },
     );
   }
+  const db = admin;
   const { data: saved, error: upErr } = await db
     .from("node0_fab_orders")
     .upsert(row, { onConflict: "stripe_checkout_session_id" })
@@ -115,13 +115,6 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-
-  void logButterbaseEvent("stripe_checkout_verified", {
-    userId: user.id,
-    projectClientId,
-    sessionId: session.id,
-    amountTotal: session.amount_total,
-  });
 
   return NextResponse.json({ order: saved });
 }

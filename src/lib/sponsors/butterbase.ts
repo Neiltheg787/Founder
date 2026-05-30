@@ -2,9 +2,6 @@ const BUTTERBASE_BASE_URL =
   process.env.BUTTERBASE_BASE_URL?.replace(/\/$/, "") ??
   "https://api.butterbase.ai";
 
-const HACKATHON_SUBMISSION_CODE =
-  process.env.BUTTERBASE_SUBMISSION_CODE?.trim() || "build0530";
-
 function butterbaseKey() {
   return process.env.BUTTERBASE_API_KEY?.trim() || null;
 }
@@ -19,10 +16,6 @@ function butterbaseEventsTable() {
 
 export function isButterbaseConfigured() {
   return Boolean(butterbaseKey() && butterbaseAppId());
-}
-
-export function hackathonSubmissionCode() {
-  return HACKATHON_SUBMISSION_CODE;
 }
 
 export async function logButterbaseEvent(
@@ -46,7 +39,6 @@ export async function logButterbaseEvent(
         },
         body: JSON.stringify({
           event,
-          submission_code: HACKATHON_SUBMISSION_CODE,
           payload,
           created_at: new Date().toISOString(),
         }),

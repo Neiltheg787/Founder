@@ -2,21 +2,19 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { computeFabQuote } from "@/lib/fab-quote";
+import { dbForApiUser, resolveApiUser } from "@/lib/demo-api-auth";
 import {
   appUrlFromRequest,
   getOrCreateStripeCustomer,
   getStripe,
   isStripeConfigured,
 } from "@/lib/stripe-server";
-import { resolveRequestUser, userClientForToken } from "@/lib/server-auth";
-import { logButterbaseEvent } from "@/lib/sponsors/butterbase";
 import { bearerFromRequest } from "@/lib/supabase-user";
 
 const bodySchema = z.object({
   projectClientId: z.string().min(1).max(128),
   qty: z.number().int().min(1).max(1_000_000),
   label: z.string().max(400).optional(),
-  /** Optional local snapshots when demo auth cannot read cloud workspace rows. */
   pcbSnapshot: z.unknown().nullable().optional(),
   cadDocument: z.unknown().nullable().optional(),
 });
@@ -34,14 +32,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const authUser = await resolveRequestUser(request);
+  const token = bearerFromRequest(request);
+  const authUser = await resolveApiUser(token);
   if (!authUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const token = bearerFromRequest(request)!;
-  const supabase = userClientForToken(token);
-  if (!supabase) {
-    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
+
+  let supabase;
+  try {
+    supabase = dbForApiUser(token!, authUser.isDemo);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Database not configured";
+    return NextResponse.json({ error: msg }, { status: 503 });
   }
   const user = { id: authUser.id, email: authUser.email };
 
@@ -66,7 +68,6 @@ export async function POST(request: Request) {
 
   let pcbForQuote: unknown = pcbSnapshot ?? null;
   let cadForQuote: unknown = cadDocument ?? null;
-
   if (pcbForQuote == null && cadForQuote == null) {
     const { data: row, error: rowErr } = await supabase
       .from("node0_workspace_projects")
@@ -74,7 +75,6 @@ export async function POST(request: Request) {
       .eq("client_id", projectClientId)
       .eq("user_id", user.id)
       .maybeSingle();
-
     if (rowErr) {
       return NextResponse.json({ error: rowErr.message }, { status: 500 });
     }
@@ -161,14 +161,6 @@ export async function POST(request: Request) {
     payment_intent_data: {
       metadata: meta,
     },
-  });
-
-  void logButterbaseEvent("stripe_checkout_started", {
-    userId: user.id,
-    projectClientId,
-    qty,
-    totalCents: quote.totalCents,
-    demoAuth: authUser.isDemo,
   });
 
   return NextResponse.json({ url: session.url });

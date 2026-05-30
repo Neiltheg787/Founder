@@ -7,7 +7,6 @@ import { EMPTY_BOM } from "@/lib/bom";
 import { streamingAgentLoop } from "@/lib/agent/streaming-loop";
 import { parsePcbEngine } from "@/lib/pcb-engine";
 import { parseCadEngine } from "@/lib/cad-engine";
-import { DEMO_USER_ID } from "@/lib/auth-constants";
 import {
   rememberWithEvermind,
   searchEvermindMemories,
@@ -103,10 +102,8 @@ export async function POST(req: Request) {
     const initialState = parseState(body);
     const pcbEngine = parsePcbEngine(body.pcbEngine);
     const cadEngine = parseCadEngine(body.cadEngine);
-    const memoryUserId = projectName.trim() || DEMO_USER_ID;
     const evermindContext = await searchEvermindMemories(
       `${projectName}\n${conversationContext}\n${normalizedText}`,
-      memoryUserId,
     );
     const sponsorContext = evermindContext
       ? `${conversationContext}\n\nEvermind memory recall:\n${evermindContext}`.trim()
@@ -166,14 +163,10 @@ export async function POST(req: Request) {
                 send("tool_result", result);
               },
               onComplete: (result) => {
-                void rememberWithEvermind(
-                  projectName,
-                  [
-                    { role: "user", content: normalizedText },
-                    { role: "assistant", content: result.reply },
-                  ],
-                  memoryUserId,
-                );
+                void rememberWithEvermind(projectName, [
+                  { role: "user", content: normalizedText },
+                  { role: "assistant", content: result.reply },
+                ]);
                 void logButterbaseEvent("ai_chat_completed", {
                   projectName,
                   message: normalizedText.slice(0, 800),
@@ -228,14 +221,10 @@ export async function POST(req: Request) {
       pcbEngine,
       cadEngine,
     });
-    void rememberWithEvermind(
-      projectName,
-      [
-        { role: "user", content: normalizedText },
-        { role: "assistant", content: result.reply },
-      ],
-      memoryUserId,
-    );
+    void rememberWithEvermind(projectName, [
+      { role: "user", content: normalizedText },
+      { role: "assistant", content: result.reply },
+    ]);
     void logButterbaseEvent("ai_chat_completed", {
       projectName,
       message: normalizedText.slice(0, 800),

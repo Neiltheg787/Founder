@@ -57,9 +57,9 @@ type HandoffErrBody = { error?: string; error_code?: string } | null;
 function mintFailureMessage(status: number, body: HandoffErrBody): string {
   if (status === 401) {
     if (body?.error_code === "no_token") {
-      return "Could not mint AR handoff. Tap Refresh QR — demo mode should work without OAuth.";
+      return "No login token was sent. Sign in from the home page, return to this tab, then tap Refresh QR.";
     }
-    return "Server rejected the handoff. Ensure SUPABASE_SERVICE_ROLE_KEY is set for storage-backed AR, then tap Refresh QR.";
+    return "Session expired or not accepted by the server. Sign out and sign in again from the home page, then tap Refresh QR. If this persists, check that this app and the server use the same Supabase project (NEXT_PUBLIC_SUPABASE_URL / key).";
   }
   if (status === 413) {
     return (
@@ -188,7 +188,9 @@ export function ArPreviewPanel({
 
       if (!session?.access_token) {
         setHandoffId(null);
-        setMintError("Could not start demo session. Reload the dashboard and tap Refresh QR.");
+        setMintError(
+          "Sign in to generate QR codes, then tap Refresh QR.",
+        );
         return;
       }
       const accessToken = session.access_token;

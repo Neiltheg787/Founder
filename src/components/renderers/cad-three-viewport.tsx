@@ -1,7 +1,7 @@
 "use client";
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Edges, Environment, Grid, OrbitControls } from "@react-three/drei";
+import { Edges, Grid, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import {
   useRef,
@@ -97,9 +97,9 @@ function FeaturePrimitiveMesh({
       castShadow={!isCut}
     >
       <meshStandardMaterial
-        color={isCut ? "#ff6b4a" : "#6d7f94"}
-        metalness={isCut ? 0.2 : 0.52}
-        roughness={isCut ? 0.55 : 0.28}
+        color={isCut ? "#ff6b4a" : "#5a6a7d"}
+        metalness={isCut ? 0.2 : 0.45}
+        roughness={isCut ? 0.55 : 0.36}
         transparent={isCut}
         opacity={isCut ? 0.28 : 1}
         depthWrite={!isCut}
@@ -285,9 +285,9 @@ function CadAssemblyRoot({
       <group>
         <mesh geometry={stlGeometry} castShadow receiveShadow>
           <meshStandardMaterial
-            color="#7a8fa8"
-            metalness={0.42}
-            roughness={0.32}
+            color="#6a7a8e"
+            metalness={0.35}
+            roughness={0.4}
             side={THREE.DoubleSide}
             polygonOffset
             polygonOffsetFactor={2}
@@ -311,9 +311,9 @@ function CadAssemblyRoot({
       ) : (
         <mesh geometry={mergedFromFeatures} castShadow receiveShadow>
           <meshStandardMaterial
-            color="#6d7f94"
-            metalness={0.52}
-            roughness={0.28}
+            color="#5a6a7d"
+            metalness={0.48}
+            roughness={0.34}
             side={THREE.DoubleSide}
             polygonOffset
             polygonOffsetFactor={2}
@@ -545,13 +545,10 @@ export const CadThreeViewport = forwardRef<
     >
       <ViewportCameraSync position={viewScale.camPos} />
       {passthrough ? null : <color attach="background" args={["#0b0a08"]} />}
-      {passthrough ? null : (
-        <Environment preset="city" environmentIntensity={0.55} />
-      )}
-      <ambientLight intensity={passthrough ? 0.78 : 0.62} />
+      <ambientLight intensity={passthrough ? 0.72 : 0.55} />
       <directionalLight
         position={[2.5, 3.5, 2]}
-        intensity={passthrough ? 1.1 : 1.45}
+        intensity={passthrough ? 1.05 : 1.35}
         castShadow={!passthrough}
         shadow-mapSize={passthrough ? [512, 512] : [1024, 1024]}
       />

@@ -12,13 +12,11 @@ const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const requireSupabaseAuth =
   process.env.NEXT_PUBLIC_REQUIRE_SUPABASE_AUTH === "true";
 
-import {
-  DEMO_ACCESS_TOKEN,
-  DEMO_EMAIL,
-  DEMO_USER_ID,
-} from "@/lib/auth-constants";
+const DEMO_USER_ID = "foundry-hackathon-demo";
 const DEMO_AUTH_EVENT = "node0-demo-auth";
 const DEMO_AUTH_KEY = "node0_demo_auth";
+const DEMO_EMAIL = "demo@foundry.local";
+
 const supabase: SupabaseClient | null =
   supabaseUrl && supabasePublishableKey
     ? createClient(supabaseUrl, supabasePublishableKey)
@@ -30,8 +28,8 @@ let cachedUserId: string | null = !requireSupabaseAuth ? DEMO_USER_ID : null;
 function demoSession(): Session {
   const now = Math.floor(Date.now() / 1000);
   return {
-    access_token: DEMO_ACCESS_TOKEN,
-    refresh_token: DEMO_ACCESS_TOKEN,
+    access_token: "foundry-demo",
+    refresh_token: "foundry-demo",
     expires_in: 60 * 60 * 24 * 365,
     expires_at: now + 60 * 60 * 24 * 365,
     token_type: "bearer",

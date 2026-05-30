@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { resolveRequestUser, userClientForToken } from "@/lib/server-auth";
-import { bearerFromRequest, getSupabaseEnv } from "@/lib/supabase-user";
+import {
+  bearerFromRequest,
+  createSupabaseForAccessToken,
+  getSupabaseEnv,
+} from "@/lib/supabase-user";
 import { teamIdsForUser } from "@/lib/team-server";
 
 const projectSchema = z.object({
@@ -61,18 +64,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  const authUser = await resolveRequestUser(request);
-  if (!authUser) {
+  const token = bearerFromRequest(request);
+  if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const token = bearerFromRequest(request)!;
-  const supabase = userClientForToken(token);
-  if (!supabase) {
-    return NextResponse.json({ projects: [], degraded: true });
-  }
-  const user = { id: authUser.id };
 
-  const teamIds = authUser.isDemo ? [] : await teamIdsForUser(supabase, user.id);
+  const supabase = createSupabaseForAccessToken(token);
+  const {
+    data: { user },
+    error: authErr,
+  } = await supabase.auth.getUser(token);
+  if (authErr || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const teamIds = await teamIdsForUser(supabase, user.id);
   let q = supabase
     .from("node0_workspace_projects")
     .select(
@@ -105,11 +111,10 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  const authUser = await resolveRequestUser(request);
-  if (!authUser) {
+  const token = bearerFromRequest(request);
+  if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const token = bearerFromRequest(request)!;
 
   let body: unknown;
   try {
@@ -131,11 +136,14 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Payload too large" }, { status: 413 });
   }
 
-  const supabase = userClientForToken(token);
-  if (!supabase) {
-    return NextResponse.json({ ok: true, degraded: true });
+  const supabase = createSupabaseForAccessToken(token);
+  const {
+    data: { user },
+    error: authErr,
+  } = await supabase.auth.getUser(token);
+  if (authErr || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const user = { id: authUser.id };
 
   const { projects } = parsed.data;
   const clientIds = projects.map((p) => p.client_id);

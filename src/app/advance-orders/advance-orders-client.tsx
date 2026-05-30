@@ -80,9 +80,7 @@ export function AdvanceOrdersClient() {
 
   useEffect(() => {
     if (!sessionReady) return;
-    if (!authed && process.env.NEXT_PUBLIC_REQUIRE_SUPABASE_AUTH === "true") {
-      router.replace("/");
-    }
+    if (!authed) router.replace("/");
   }, [sessionReady, authed, router]);
 
   useEffect(() => {
@@ -127,7 +125,7 @@ export function AdvanceOrdersClient() {
     }
   };
 
-  if (!sessionReady || (!authed && process.env.NEXT_PUBLIC_REQUIRE_SUPABASE_AUTH === "true")) {
+  if (!sessionReady || !authed) {
     return (
       <div
         className="flex min-h-screen flex-col items-center justify-center gap-2 bg-[#09090b] px-4"

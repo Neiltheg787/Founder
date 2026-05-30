@@ -11,10 +11,12 @@ import {
 import { HANDOFF_GZIP_CONTENT_TYPE } from "@/lib/ar-handoff-transport";
 import { parseCadDocumentUnknown } from "@/lib/cad-document";
 import { serverCompileOpenscadToStlBase64 } from "@/lib/openscad-server-render";
-import { resolveRequestUser } from "@/lib/server-auth";
+import { dbForApiUser, resolveApiUser } from "@/lib/demo-api-auth";
 import { createSupabaseServiceClient } from "@/lib/supabase-service";
-import { logButterbaseEvent } from "@/lib/sponsors/butterbase";
-import { getSupabaseEnv } from "@/lib/supabase-user";
+import {
+  bearerFromRequest,
+  getSupabaseEnv,
+} from "@/lib/supabase-user";
 
 const postBodySchema = z.object({
   cad: z.unknown(),
@@ -62,16 +64,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  const authUser = await resolveRequestUser(request);
+  const token = bearerFromRequest(request);
+  const authUser = await resolveApiUser(token);
   if (!authUser) {
     return NextResponse.json(
       { error: "Unauthorized", error_code: "no_token" },
       { status: 401 },
     );
   }
+
+  let supabase;
+  try {
+    supabase = dbForApiUser(token!, authUser.isDemo);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Database not configured";
+    return NextResponse.json({ error: msg }, { status: 503 });
+  }
   const user = { id: authUser.id };
-  const svcForRpc = createSupabaseServiceClient();
-  const supabase = svcForRpc;
 
   const ct = request.headers.get("content-type") ?? "";
   let body: unknown;
@@ -167,12 +176,6 @@ export async function POST(request: Request) {
       });
 
       if (!insErr) {
-        void logButterbaseEvent("ar_handoff_created", {
-          handoffId: id,
-          userId: user.id,
-          hasOpenscad: Boolean(oscCode),
-          hasPreRenderedStl: Boolean(preRenderedStlBase64),
-        });
         return NextResponse.json({ id, expiresAt });
       }
 
@@ -187,13 +190,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: rpcRow, error: rpcErr } =
-    supabase && !authUser.isDemo
-      ? await supabase.rpc("node0_create_ar_handoff", {
-          p_cad: cadDoc as unknown as Record<string, unknown>,
-          p_circuit: asJsonbRpcArg(circuitSnap),
-        })
-      : { data: null, error: { message: "demo_skip_rpc" } as { message: string } };
+  const { data: rpcRow, error: rpcErr } = authUser.isDemo
+    ? { data: null, error: null }
+    : await supabase.rpc("node0_create_ar_handoff", {
+        p_cad: cadDoc as unknown as Record<string, unknown>,
+        p_circuit: asJsonbRpcArg(circuitSnap),
+      });
 
   if (!rpcErr && rpcRow && typeof rpcRow === "object") {
     const row = rpcRow as { id?: string; expiresAt?: string };
@@ -226,14 +228,9 @@ export async function POST(request: Request) {
     }
   }
 
-  if (
-    rpcErr &&
-    !authUser.isDemo &&
-    !isMissingRpcError(rpcErr) &&
-    rpcErr.message !== "demo_skip_rpc"
-  ) {
+  if (!isMissingRpcError(rpcErr)) {
     const hint =
-      rpcErr.message ??
+      rpcErr?.message ??
       "Handoff RPC failed. Apply migration 20260412100000_node0_ar_handoff_rpc.sql.";
     return NextResponse.json({ error: hint }, { status: 500 });
   }
@@ -274,12 +271,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: insErr.message }, { status: 500 });
   }
-
-  void logButterbaseEvent("ar_handoff_created", {
-    handoffId: id,
-    userId: user.id,
-    storage: "inline",
-  });
 
   return NextResponse.json({
     id,

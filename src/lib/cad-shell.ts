@@ -7,11 +7,11 @@ export type ShellParams = {
 };
 
 export const DEFAULT_SHELL: ShellParams = {
-  lengthMm: 120,
-  widthMm: 78,
-  heightMm: 28,
-  wallMm: 2.6,
-  cornerRadiusMm: 4,
+  lengthMm: 118,
+  widthMm: 76,
+  heightMm: 24,
+  wallMm: 2.4,
+  cornerRadiusMm: 3,
 };
 
 export function clampShell(p: ShellParams): ShellParams {

@@ -68,8 +68,6 @@ export async function GET() {
         process.env.BUTTERBASE_API_KEY.length > 0 &&
         typeof process.env.BUTTERBASE_APP_ID === "string" &&
         process.env.BUTTERBASE_APP_ID.length > 0,
-      butterbaseSubmissionCode:
-        process.env.BUTTERBASE_SUBMISSION_CODE?.trim() || "build0530",
       pcbEngine: "pcbflow",
     },
     timestamp: new Date().toISOString(),
