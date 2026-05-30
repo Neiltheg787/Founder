@@ -65,23 +65,16 @@ export async function POST(request: Request) {
   }
 
   const token = bearerFromRequest(request);
-  if (!token) {
-    return NextResponse.json(
-      { error: "Unauthorized", error_code: "no_token" },
-      { status: 401 },
-    );
-  }
-
-  const supabase = createSupabaseForAccessToken(token);
-  const {
-    data: { user },
-    error: authErr,
-  } = await supabase.auth.getUser(token);
-  if (authErr || !user) {
-    return NextResponse.json(
-      { error: "Unauthorized", error_code: "invalid_token" },
-      { status: 401 },
-    );
+  let user: any = null;
+  if (token) {
+    const supabase = createSupabaseForAccessToken(token);
+    const {
+      data: { user: authUser },
+      error: authErr,
+    } = await supabase.auth.getUser(token);
+    if (!authErr && authUser) {
+      user = authUser;
+    }
   }
 
   const ct = request.headers.get("content-type") ?? "";

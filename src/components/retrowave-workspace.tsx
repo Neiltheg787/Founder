@@ -1672,7 +1672,9 @@ export function RetrowaveWorkspace() {
 
   useEffect(() => {
     if (!activeId) {
-      suggestionsAbortRef.current?.abort();
+      try {
+        suggestionsAbortRef.current?.abort();
+      } catch {}
       setChatSuggestions([]);
       setChatSuggestionsError(null);
       setChatSuggestionsLoading(false);
@@ -1680,7 +1682,9 @@ export function RetrowaveWorkspace() {
     }
     if (assistantDrafting) return;
 
-    suggestionsAbortRef.current?.abort();
+    try {
+      suggestionsAbortRef.current?.abort();
+    } catch {}
     const ac = new AbortController();
     suggestionsAbortRef.current = ac;
     const t = window.setTimeout(() => {
@@ -1688,7 +1692,9 @@ export function RetrowaveWorkspace() {
     }, 250);
     return () => {
       window.clearTimeout(t);
-      ac.abort();
+      try {
+        ac.abort();
+      } catch {}
     };
   }, [
     activeId,
@@ -1702,7 +1708,9 @@ export function RetrowaveWorkspace() {
 
   const refreshChatSuggestions = useCallback(() => {
     if (!activeId || assistantDrafting) return;
-    suggestionsAbortRef.current?.abort();
+    try {
+      suggestionsAbortRef.current?.abort();
+    } catch {}
     const ac = new AbortController();
     suggestionsAbortRef.current = ac;
     void fetchChatSuggestions(ac.signal);
@@ -1925,7 +1933,7 @@ export function RetrowaveWorkspace() {
     if (activeId && activeProject) return activeProject.name;
     switch (tab) {
       case "Home":
-        return "New board";
+        return "Boards";
       case "Projects":
         return "Boards";
       case "Templates":
@@ -1965,9 +1973,6 @@ export function RetrowaveWorkspace() {
                 <h1 className="font-heading text-lg font-semibold leading-snug tracking-[-0.02em] text-zinc-50 sm:text-xl">
                   {headerTitle}
                 </h1>
-                <p className="mt-1 text-xs text-zinc-500">
-                  Demo mode is open. Evermind memory and Butterbase backend hooks are enabled when keys are set.
-                </p>
                 {invalidProjectParam ? (
                   <p className="mt-2 text-xs leading-relaxed text-zinc-400">
                     Board not found. Redirecting to your boards…
@@ -2376,17 +2381,6 @@ export function RetrowaveWorkspace() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTab("Home");
-                      goBoardHome();
-                    }}
-                    className="inline-flex items-center gap-2 rounded-full border border-white/[0.1] bg-white/[0.06] px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/[0.1]"
-                  >
-                    <SquarePen className="size-4 text-zinc-400" />
-                    New board
-                  </button>
                   <button
                     type="button"
                     onClick={() => setNewOpen(true)}
