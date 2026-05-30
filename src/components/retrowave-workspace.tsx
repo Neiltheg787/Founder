@@ -1965,6 +1965,9 @@ export function RetrowaveWorkspace() {
                 <h1 className="font-heading text-lg font-semibold leading-snug tracking-[-0.02em] text-zinc-50 sm:text-xl">
                   {headerTitle}
                 </h1>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Demo mode is open. Evermind memory and Butterbase backend hooks are enabled when keys are set.
+                </p>
                 {invalidProjectParam ? (
                   <p className="mt-2 text-xs leading-relaxed text-zinc-400">
                     Board not found. Redirecting to your boards…
@@ -1982,6 +1985,10 @@ export function RetrowaveWorkspace() {
                 {activeProject.name}
               </h2>
               <div className="flex items-center gap-2">
+                <div className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-2 text-xs font-medium text-zinc-200 sm:inline-flex">
+                  <Cpu className="size-3.5 text-zinc-300" strokeWidth={2} />
+                  Evermind + Butterbase
+                </div>
                 {projectTool === "cad" || projectTool === "pcb" ? (
                   <button
                     type="button"
@@ -2123,7 +2130,7 @@ export function RetrowaveWorkspace() {
                               : m.role === "typing"
                               ? "rounded-bl-md border border-zinc-700 bg-zinc-800/80 text-zinc-400"
                               : m.role === "progress"
-                              ? "rounded-bl-md border border-blue-800/50 bg-blue-900/30 text-blue-300"
+                              ? "rounded-bl-md border border-zinc-700/70 bg-zinc-900/70 text-zinc-300"
                               : m.role === "assistant-streaming"
                               ? "rounded-bl-md border border-zinc-800 bg-zinc-900/90 text-zinc-300 animate-pulse"
                               : "rounded-bl-md border border-zinc-800 bg-zinc-900/90 text-zinc-300",
@@ -2141,7 +2148,7 @@ export function RetrowaveWorkspace() {
                           )}
                           {m.role === "progress" && (
                             <div className="flex items-center gap-2">
-                              <div className="h-2 w-2 animate-spin rounded-full border border-blue-400 border-t-transparent" />
+                              <div className="h-2 w-2 animate-spin rounded-full border border-zinc-300 border-t-transparent" />
                               <span>{m.text}</span>
                             </div>
                           )}
@@ -2275,7 +2282,7 @@ export function RetrowaveWorkspace() {
                         (circuitronResults as { pcbWarnings: string[] }).pcbWarnings
                           .length > 0 ? (
                           <div
-                            className="shrink-0 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-100/95"
+                            className="shrink-0 rounded-lg border border-zinc-500/35 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-200"
                             role="status"
                           >
                             {(circuitronResults as { pcbWarnings: string[] }).pcbWarnings.join(

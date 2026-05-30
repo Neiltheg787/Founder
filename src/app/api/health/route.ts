@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { circuitronSubprocess } from "@/lib/circuitron";
 import { validateCircuitronEnvironment } from "@/lib/circuitron/config";
-import { parsePcbEngine } from "@/lib/pcb-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -11,20 +10,16 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const env = validateCircuitronEnvironment();
-  const pcbEngine = parsePcbEngine(process.env.NODE0_PCB_ENGINE);
-  const circuitronRequired = pcbEngine !== "pcbflow";
   let circuitronCli: "unknown" | "ok" | "error" = "unknown";
   let circuitronError: string | undefined;
 
-  if (circuitronRequired) {
-    try {
-      const health = await circuitronSubprocess.healthCheck();
-      circuitronCli = health.healthy ? "ok" : "error";
-      circuitronError = health.error;
-    } catch (e) {
-      circuitronCli = "error";
-      circuitronError = e instanceof Error ? e.message : "Health check failed";
-    }
+  try {
+    const health = await circuitronSubprocess.healthCheck();
+    circuitronCli = health.healthy ? "ok" : "error";
+    circuitronError = health.error;
+  } catch (e) {
+    circuitronCli = "error";
+    circuitronError = e instanceof Error ? e.message : "Health check failed";
   }
 
   const stripe =
@@ -45,16 +40,13 @@ export async function GET() {
     typeof process.env.OPENAI_API_KEY === "string" &&
     process.env.OPENAI_API_KEY.length > 0;
 
-  /** Full app readiness. Circuitron is optional when PCBFlow is the active backend. */
-  const ready =
-    openai &&
-    supabase &&
-    (!circuitronRequired || (env.valid && circuitronCli === "ok"));
+  /** Full stack for on-device PCB generation + agent */
+  const ready = env.valid && circuitronCli === "ok" && openai;
 
   return NextResponse.json({
     ok: true,
     ready,
-    app: "foundry",
+    app: "node0",
     version: "0.1.0",
     checks: {
       openaiConfigured: openai,
@@ -64,8 +56,19 @@ export async function GET() {
       circuitronCliHint: circuitronError,
       stripeConfigured: stripe,
       supabaseConfigured: supabase,
-      circuitronRequired,
-      pcbEngine,
+      authMode:
+        process.env.NEXT_PUBLIC_REQUIRE_SUPABASE_AUTH === "true"
+          ? "supabase"
+          : "demo",
+      evermindConfigured:
+        typeof process.env.EVERMIND_API_KEY === "string" &&
+        process.env.EVERMIND_API_KEY.length > 0,
+      butterbaseConfigured:
+        typeof process.env.BUTTERBASE_API_KEY === "string" &&
+        process.env.BUTTERBASE_API_KEY.length > 0 &&
+        typeof process.env.BUTTERBASE_APP_ID === "string" &&
+        process.env.BUTTERBASE_APP_ID.length > 0,
+      pcbEngine: "pcbflow",
     },
     timestamp: new Date().toISOString(),
   });

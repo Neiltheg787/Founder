@@ -1,22 +1,68 @@
 "use client";
 
-import { createClient, type Provider } from "@supabase/supabase-js";
+import {
+  createClient,
+  type Provider,
+  type Session,
+  type SupabaseClient,
+} from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const requireSupabaseAuth =
+  process.env.NEXT_PUBLIC_REQUIRE_SUPABASE_AUTH === "true";
 
-if (!supabaseUrl || !supabasePublishableKey) {
-  throw new Error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
-  );
+const DEMO_USER_ID = "foundry-hackathon-demo";
+const DEMO_AUTH_EVENT = "node0-demo-auth";
+const DEMO_AUTH_KEY = "node0_demo_auth";
+const DEMO_EMAIL = "demo@foundry.local";
+
+const supabase: SupabaseClient | null =
+  supabaseUrl && supabasePublishableKey
+    ? createClient(supabaseUrl, supabasePublishableKey)
+    : null;
+
+let cachedHasSession = !requireSupabaseAuth;
+let cachedUserId: string | null = !requireSupabaseAuth ? DEMO_USER_ID : null;
+
+function demoSession(): Session {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    access_token: "",
+    refresh_token: "",
+    expires_in: 60 * 60 * 24 * 365,
+    expires_at: now + 60 * 60 * 24 * 365,
+    token_type: "bearer",
+    user: {
+      id: DEMO_USER_ID,
+      app_metadata: { provider: "demo", providers: ["demo"] },
+      user_metadata: { name: "Hackathon Demo", email: DEMO_EMAIL },
+      aud: "authenticated",
+      created_at: new Date(0).toISOString(),
+      email: DEMO_EMAIL,
+    },
+  } as Session;
 }
 
-const supabase = createClient(supabaseUrl, supabasePublishableKey);
+function notifyAuthChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(DEMO_AUTH_EVENT));
+}
 
-let cachedHasSession = false;
-let cachedUserId: string | null = null;
+function writeDemoAuth() {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(DEMO_AUTH_KEY, "1");
+  cachedHasSession = true;
+  cachedUserId = DEMO_USER_ID;
+  notifyAuthChanged();
+}
 
 export async function hydrateAuthSession() {
+  if (!requireSupabaseAuth) {
+    writeDemoAuth();
+    return demoSession();
+  }
+  if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
   cachedHasSession = Boolean(data.session);
   cachedUserId = data.session?.user.id ?? null;
@@ -32,6 +78,24 @@ export function getCachedAuthUserId() {
 }
 
 export function subscribeAuthSession(onStoreChange: () => void) {
+  if (!requireSupabaseAuth) {
+    const handler = () => {
+      cachedHasSession = true;
+      cachedUserId = DEMO_USER_ID;
+      onStoreChange();
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener(DEMO_AUTH_EVENT, handler);
+      queueMicrotask(handler);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener(DEMO_AUTH_EVENT, handler);
+      }
+    };
+  }
+
+  if (!supabase) return () => {};
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -44,6 +108,13 @@ export function subscribeAuthSession(onStoreChange: () => void) {
 }
 
 export async function signInWithProvider(provider: Provider, next = "/dashboard") {
+  if (!requireSupabaseAuth) {
+    void provider;
+    writeDemoAuth();
+    window.location.assign(next);
+    return;
+  }
+  if (!supabase) throw new Error("Supabase auth is not configured.");
   const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
@@ -54,10 +125,22 @@ export async function signInWithProvider(provider: Provider, next = "/dashboard"
 }
 
 export async function signOutAuth() {
-  await supabase.auth.signOut();
+  if (!requireSupabaseAuth) {
+    cachedHasSession = true;
+    cachedUserId = DEMO_USER_ID;
+    notifyAuthChanged();
+    return;
+  }
+  if (supabase) await supabase.auth.signOut();
 }
 
 export async function getSession() {
+  if (!requireSupabaseAuth) {
+    cachedHasSession = true;
+    cachedUserId = DEMO_USER_ID;
+    return demoSession();
+  }
+  if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
   cachedHasSession = Boolean(data.session);
   cachedUserId = data.session?.user.id ?? null;
@@ -66,6 +149,8 @@ export async function getSession() {
 
 /** Refresh access token before server calls that validate JWT (e.g. AR handoff mint). */
 export async function refreshAuthSession() {
+  if (!requireSupabaseAuth) return demoSession();
+  if (!supabase) return null;
   const { data, error } = await supabase.auth.refreshSession();
   if (error || !data.session) return null;
   cachedHasSession = true;

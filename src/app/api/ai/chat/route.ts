@@ -7,6 +7,11 @@ import { EMPTY_BOM } from "@/lib/bom";
 import { streamingAgentLoop } from "@/lib/agent/streaming-loop";
 import { parsePcbEngine } from "@/lib/pcb-engine";
 import { parseCadEngine } from "@/lib/cad-engine";
+import {
+  rememberWithEvermind,
+  searchEvermindMemories,
+} from "@/lib/sponsors/evermind";
+import { logButterbaseEvent } from "@/lib/sponsors/butterbase";
 
 export const maxDuration = 300;
 
@@ -97,6 +102,21 @@ export async function POST(req: Request) {
     const initialState = parseState(body);
     const pcbEngine = parsePcbEngine(body.pcbEngine);
     const cadEngine = parseCadEngine(body.cadEngine);
+    const evermindContext = await searchEvermindMemories(
+      `${projectName}\n${conversationContext}\n${normalizedText}`,
+    );
+    const sponsorContext = evermindContext
+      ? `${conversationContext}\n\nEvermind memory recall:\n${evermindContext}`.trim()
+      : conversationContext;
+
+    void logButterbaseEvent("ai_chat_started", {
+      projectName,
+      message: normalizedText.slice(0, 800),
+      hasImages: images.length > 0,
+      pcbEngine: body.pcbEngine,
+      cadEngine: body.cadEngine,
+    });
+
     if (body.stream) {
       const encoder = new TextEncoder();
       const abortController = new AbortController();
@@ -124,7 +144,7 @@ export async function POST(req: Request) {
               mode,
               projectName,
               message: normalizedText,
-              conversationContext,
+              conversationContext: sponsorContext,
               images,
               initialState,
               pcbEngine,
@@ -143,6 +163,16 @@ export async function POST(req: Request) {
                 send("tool_result", result);
               },
               onComplete: (result) => {
+                void rememberWithEvermind(projectName, [
+                  { role: "user", content: normalizedText },
+                  { role: "assistant", content: result.reply },
+                ]);
+                void logButterbaseEvent("ai_chat_completed", {
+                  projectName,
+                  message: normalizedText.slice(0, 800),
+                  reply: result.reply.slice(0, 1200),
+                  toolCalls: result.toolCalls.map((toolCall) => toolCall.tool),
+                });
                 send("done", {
                   reply: result.reply,
                   toolCalls: result.toolCalls,
@@ -185,11 +215,21 @@ export async function POST(req: Request) {
       mode,
       projectName,
       message: normalizedText,
-      conversationContext,
+      conversationContext: sponsorContext,
       images,
       initialState,
       pcbEngine,
       cadEngine,
+    });
+    void rememberWithEvermind(projectName, [
+      { role: "user", content: normalizedText },
+      { role: "assistant", content: result.reply },
+    ]);
+    void logButterbaseEvent("ai_chat_completed", {
+      projectName,
+      message: normalizedText.slice(0, 800),
+      reply: result.reply.slice(0, 1200),
+      toolCalls: result.toolCalls.map((toolCall) => toolCall.tool),
     });
     return NextResponse.json({
       reply: result.reply,

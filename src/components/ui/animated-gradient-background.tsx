@@ -30,7 +30,7 @@ interface AnimatedGradientBackgroundProps {
   /**
    * Array of colors to use in the radial gradient.
    * Each color corresponds to a stop percentage in `gradientStops`.
-   * @default ["#080706", "#2dd4bf", "#f97316", "#f59e0b", "#facc15", "#14b8a6", "#0f766e"]
+   * @default ["#050505", "#151515", "#2a2a2a", "#474747", "#737373", "#1f1f1f", "#000000"]
    */
   gradientColors?: string[];
 
@@ -88,7 +88,7 @@ interface AnimatedGradientBackgroundProps {
   /** How dark the dot overlay is (0–1). @default 0.62 */
   halftoneStrength?: number;
 
-  /** Solid color behind the gradient (avoids flash before first paint). @default first gradient color or #080706 */
+  /** Solid color behind the gradient (avoids flash before first paint). @default first gradient color or #050505 */
   baseColor?: string;
 
   /**
@@ -109,13 +109,13 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
   startingGap = 125,
   Breathing = true,
   gradientColors = [
-    "#080706",
-    "#2dd4bf",
-    "#f97316",
-    "#f59e0b",
-    "#facc15",
-    "#14b8a6",
-    "#0f766e",
+    "#050505",
+    "#151515",
+    "#2a2a2a",
+    "#474747",
+    "#737373",
+    "#1f1f1f",
+    "#000000",
   ],
   gradientStops = [35, 50, 60, 70, 80, 90, 100],
   animationSpeed = 0.011,
@@ -138,7 +138,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
     );
   }
 
-  const fallbackBg = baseColor ?? gradientColors[0] ?? "#080706";
+  const fallbackBg = baseColor ?? gradientColors[0] ?? "#050505";
 
   const initialGradient = useMemo(
     () =>
@@ -223,7 +223,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{
-            backgroundColor: `rgba(8, 7, 6, ${halftoneStrength})`,
+            backgroundColor: `rgba(5, 5, 5, ${halftoneStrength})`,
             maskImage: `radial-gradient(circle at center, white ${halftoneDotRadius}px, transparent ${halftoneDotRadius + 0.35}px)`,
             maskSize: `${halftoneSpacing}px ${halftoneSpacing}px`,
             maskRepeat: "repeat",
