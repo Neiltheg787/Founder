@@ -1672,7 +1672,9 @@ export function RetrowaveWorkspace() {
 
   useEffect(() => {
     if (!activeId) {
-      suggestionsAbortRef.current?.abort();
+      if (suggestionsAbortRef.current && !suggestionsAbortRef.current.signal.aborted) {
+        suggestionsAbortRef.current.abort();
+      }
       setChatSuggestions([]);
       setChatSuggestionsError(null);
       setChatSuggestionsLoading(false);
@@ -1680,7 +1682,9 @@ export function RetrowaveWorkspace() {
     }
     if (assistantDrafting) return;
 
-    suggestionsAbortRef.current?.abort();
+    if (suggestionsAbortRef.current && !suggestionsAbortRef.current.signal.aborted) {
+      suggestionsAbortRef.current.abort();
+    }
     const ac = new AbortController();
     suggestionsAbortRef.current = ac;
     const t = window.setTimeout(() => {
@@ -1704,7 +1708,9 @@ export function RetrowaveWorkspace() {
 
   const refreshChatSuggestions = useCallback(() => {
     if (!activeId || assistantDrafting) return;
-    suggestionsAbortRef.current?.abort();
+    if (suggestionsAbortRef.current && !suggestionsAbortRef.current.signal.aborted) {
+      suggestionsAbortRef.current.abort();
+    }
     const ac = new AbortController();
     suggestionsAbortRef.current = ac;
     void fetchChatSuggestions(ac.signal);
