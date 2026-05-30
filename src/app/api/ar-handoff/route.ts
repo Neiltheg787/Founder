@@ -56,6 +56,80 @@ function isMissingRpcError(e: { code?: string; message?: string } | null) {
   );
 }
 
+function handoffCreatedBy(userId: string): string | null {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    userId,
+  )
+    ? userId
+    : null;
+}
+
+async function insertStorageHandoff(
+  svc: NonNullable<ReturnType<typeof createSupabaseServiceClient>>,
+  userId: string,
+  payload: { cad: unknown; circuitron: unknown; preRenderedStlBase64?: string },
+): Promise<{ id: string; expiresAt: string } | null> {
+  const id = newHandoffId();
+  const expiresAt = new Date(Date.now() + HANDOFF_TTL_MS).toISOString();
+  const path = `v1/${id}.json.gz`;
+  const compressed = gzipSync(Buffer.from(JSON.stringify(payload), "utf8"));
+
+  const { error: upErr } = await svc.storage
+    .from(AR_HANDOFF_BUCKET)
+    .upload(path, compressed, {
+      contentType: "application/gzip",
+      upsert: false,
+    });
+  if (upErr) return null;
+
+  const { error: insErr } = await svc.from("node0_ar_handoffs").insert({
+    id,
+    payload: null,
+    storage_path: path,
+    expires_at: expiresAt,
+    created_by: handoffCreatedBy(userId),
+  });
+
+  if (insErr) {
+    await svc.storage.from(AR_HANDOFF_BUCKET).remove([path]).catch(() => {});
+    return null;
+  }
+
+  return { id, expiresAt };
+}
+
+async function insertInlineHandoff(
+  svc: NonNullable<ReturnType<typeof createSupabaseServiceClient>>,
+  userId: string,
+  payload: { cad: unknown; circuitron: unknown; preRenderedStlBase64?: string },
+): Promise<{ id: string; expiresAt: string } | { error: string; status: number }> {
+  const id = newHandoffId();
+  const expiresAt = new Date(Date.now() + HANDOFF_TTL_MS).toISOString();
+
+  const { error: insErr } = await svc.from("node0_ar_handoffs").insert({
+    id,
+    payload,
+    expires_at: expiresAt,
+    created_by: handoffCreatedBy(userId),
+  });
+
+  if (insErr) {
+    const missing =
+      insErr.code === "42P01" ||
+      (insErr.message ?? "").toLowerCase().includes("node0_ar_handoffs");
+    if (missing) {
+      return {
+        error:
+          "AR handoffs table missing. Apply Supabase migration 20260411160000_node0_ar_handoffs.sql in the SQL editor.",
+        status: 503,
+      };
+    }
+    return { error: insErr.message, status: 500 };
+  }
+
+  return { id, expiresAt };
+}
+
 export async function POST(request: Request) {
   try {
     getSupabaseEnv();
@@ -153,129 +227,79 @@ export async function POST(request: Request) {
 
   const svc = createSupabaseServiceClient();
   if (svc) {
-    const id = newHandoffId();
-    const expiresAt = new Date(Date.now() + HANDOFF_TTL_MS).toISOString();
-    const path = `v1/${id}.json.gz`;
-    const json = JSON.stringify(payload);
-    const compressed = gzipSync(Buffer.from(json, "utf8"));
+    const stored = await insertStorageHandoff(svc, user.id, payload);
+    if (stored) {
+      return NextResponse.json(stored);
+    }
 
-    const { error: upErr } = await svc.storage
-      .from(AR_HANDOFF_BUCKET)
-      .upload(path, compressed, {
-        contentType: "application/gzip",
-        upsert: false,
-      });
-
-    if (!upErr) {
-      const { error: insErr } = await svc.from("node0_ar_handoffs").insert({
-        id,
-        payload: null,
-        storage_path: path,
-        expires_at: expiresAt,
-        created_by: user.id,
-      });
-
-      if (!insErr) {
-        return NextResponse.json({ id, expiresAt });
-      }
-
-      await svc.storage.from(AR_HANDOFF_BUCKET).remove([path]).catch(() => {});
-
-      const missingCol =
-        insErr.message?.toLowerCase().includes("storage_path") ||
-        insErr.message?.toLowerCase().includes("payload");
-      if (!missingCol) {
-        return NextResponse.json({ error: insErr.message }, { status: 500 });
-      }
+    const inline = await insertInlineHandoff(svc, user.id, payload);
+    if ("id" in inline) {
+      return NextResponse.json(inline);
+    }
+    if (inline.status === 503) {
+      return NextResponse.json({ error: inline.error }, { status: 503 });
     }
   }
 
-  const { data: rpcRow, error: rpcErr } = authUser.isDemo
-    ? { data: null, error: null }
-    : await supabase.rpc("node0_create_ar_handoff", {
+  if (!authUser.isDemo) {
+    const { data: rpcRow, error: rpcErr } = await supabase.rpc(
+      "node0_create_ar_handoff",
+      {
         p_cad: cadDoc as unknown as Record<string, unknown>,
         p_circuit: asJsonbRpcArg(circuitSnap),
-      });
-
-  if (!rpcErr && rpcRow && typeof rpcRow === "object") {
-    const row = rpcRow as { id?: string; expiresAt?: string };
-    if (typeof row.id === "string") {
-      return NextResponse.json({
-        id: row.id,
-        expiresAt:
-          typeof row.expiresAt === "string"
-            ? row.expiresAt
-            : (row.expiresAt as unknown as string) ?? null,
-      });
-    }
-  }
-
-  if (rpcErr) {
-    const msg = rpcErr.message ?? "";
-    if (/not authenticated/i.test(msg)) {
-      return NextResponse.json(
-        { error: "Unauthorized", error_code: "invalid_token" },
-        { status: 401 },
-      );
-    }
-    if (/payload too large/i.test(msg)) {
-      return NextResponse.json(
-        {
-          error: `Handoff exceeds DB limit (${Math.round(AR_HANDOFF_MAX_UNCOMPRESSED_BYTES / (1024 * 1024))} MiB). Set SUPABASE_SERVICE_ROLE_KEY and apply migration 20260413160000_node0_ar_handoffs_storage.sql for file storage, or trim the project.`,
-        },
-        { status: 413 },
-      );
-    }
-  }
-
-  if (!isMissingRpcError(rpcErr)) {
-    const hint =
-      rpcErr?.message ??
-      "Handoff RPC failed. Apply migration 20260412100000_node0_ar_handoff_rpc.sql.";
-    return NextResponse.json({ error: hint }, { status: 500 });
-  }
-
-  const svcFallback = svc ?? createSupabaseServiceClient();
-  if (!svcFallback) {
-    return NextResponse.json(
-      {
-        error:
-          "Apply Supabase migration node0_ar_handoff_rpc.sql (Dashboard → SQL), or set SUPABASE_SERVICE_ROLE_KEY for storage-backed handoffs.",
       },
-      { status: 503 },
     );
-  }
 
-  const id = newHandoffId();
-  const expiresAt = new Date(Date.now() + HANDOFF_TTL_MS).toISOString();
-
-  const { error: insErr } = await svcFallback.from("node0_ar_handoffs").insert({
-    id,
-    payload,
-    expires_at: expiresAt,
-    created_by: user.id,
-  });
-
-  if (insErr) {
-    const missing =
-      insErr.code === "42P01" ||
-      (insErr.message ?? "").toLowerCase().includes("node0_ar_handoffs");
-    if (missing) {
-      return NextResponse.json(
-        {
-          error:
-            "AR handoffs table missing. Apply Supabase migrations for node0_ar_handoffs.",
-        },
-        { status: 503 },
-      );
+    if (!rpcErr && rpcRow && typeof rpcRow === "object") {
+      const row = rpcRow as { id?: string; expiresAt?: string };
+      if (typeof row.id === "string") {
+        return NextResponse.json({
+          id: row.id,
+          expiresAt:
+            typeof row.expiresAt === "string"
+              ? row.expiresAt
+              : (row.expiresAt as unknown as string) ?? null,
+        });
+      }
     }
-    return NextResponse.json({ error: insErr.message }, { status: 500 });
+
+    if (rpcErr) {
+      const msg = rpcErr.message ?? "";
+      if (/not authenticated/i.test(msg)) {
+        return NextResponse.json(
+          { error: "Unauthorized", error_code: "invalid_token" },
+          { status: 401 },
+        );
+      }
+      if (/payload too large/i.test(msg)) {
+        return NextResponse.json(
+          {
+            error: `Handoff exceeds DB limit (${Math.round(AR_HANDOFF_MAX_UNCOMPRESSED_BYTES / (1024 * 1024))} MiB). Set SUPABASE_SERVICE_ROLE_KEY and apply migration 20260413160000_node0_ar_handoffs_storage.sql for file storage, or trim the project.`,
+          },
+          { status: 413 },
+        );
+      }
+      if (!isMissingRpcError(rpcErr)) {
+        return NextResponse.json(
+          {
+            error:
+              rpcErr.message ??
+              "Handoff RPC failed. Apply migration 20260412100000_node0_ar_handoff_rpc.sql.",
+          },
+          { status: 500 },
+        );
+      }
+    }
   }
 
-  return NextResponse.json({
-    id,
-    expiresAt,
-  });
+  return NextResponse.json(
+    {
+      error: svc
+        ? "Could not save AR handoff. Apply migrations 20260411160000_node0_ar_handoffs.sql and 20260413160000_node0_ar_handoffs_storage.sql in Supabase."
+        : "Set SUPABASE_SERVICE_ROLE_KEY on the server for AR handoffs (no RPC migration required).",
+    },
+    { status: 503 },
+  );
 }
 
 export async function GET(request: Request) {
